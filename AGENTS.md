@@ -10,6 +10,65 @@
 
 ---
 
+## Architecture Rules
+
+### Layered Architecture
+```
+Controller → Service → Repository → Data Source
+```
+- **Controller:** HTTP handling, validation, response formatting
+- **Service:** Business logic, orchestration
+- **Repository:** Data access abstraction
+- **Data Source:** Database, external APIs
+
+### Repository Pattern
+- Data access must go through repository layer
+- Never query database directly from service
+- Interface-based design for testability
+
+### Typed Data
+- Use DTOs/Interfaces for all data transfers
+- Define return types explicitly
+- No `any` types — use `unknown` with type guards if needed
+
+---
+
+## Coding Standards
+
+### File Naming
+```
+*.service.ts        → Business logic
+*.controller.ts     → HTTP handlers
+*.repository.ts     → Data access
+*.dto.ts           → Data transfer objects
+*.entity.ts         → Domain models
+*.spec.ts          → Unit tests (MUST exist for every feature)
+```
+
+### Unit Test Requirements
+**Every feature MUST have corresponding `*.spec.ts`**
+```
+src/auth/auth.service.ts   → src/auth/auth.service.spec.ts
+src/auth/auth.controller.ts → src/auth/auth.controller.spec.ts
+```
+
+Test coverage requirements:
+- Service methods: all public methods tested
+- Controller methods: all endpoints tested with mocks
+
+---
+
+## Pre-PR Checklist
+
+- [ ] Unit tests exist for new feature
+- [ ] All tests pass: `npm test`
+- [ ] Build succeeds: `npm run build`
+- [ ] No hardcoded secrets
+- [ ] Docker builds: `docker compose build`
+- [ ] Types are explicit (no `any`)
+
+---
+
 ## Quick Commands
 
 ```bash
@@ -25,7 +84,8 @@ docker compose down            # Stop
 
 # Git
 git checkout -b feat/<name>   # Create feature branch
-git commit -m "<type>: <desc>" # Commit changes
+git add . && git commit -m "<type>: <desc>"
+git push origin-https HEAD     # Push current branch
 ```
 
 ---
@@ -36,28 +96,62 @@ git commit -m "<type>: <desc>" # Commit changes
 
 ---
 
-## Pre-Commit Checklist
-
-- [ ] Tests pass: `npm test`
-- [ ] Build succeeds: `npm run build`
-- [ ] No hardcoded secrets
-- [ ] Docker builds successfully
-
----
-
 ## Project Structure
 
 ```
 src/
-├── auth/              # JWT authentication module
-│   ├── auth.module.ts
-│   ├── auth.service.ts
-│   ├── auth.controller.ts
-│   ├── auth.service.spec.ts
-│   └── auth.controller.spec.ts
+├── auth/                    # Auth module (example)
+│   ├── dto/                  # Data transfer objects
+│   │   ├── login.dto.ts
+│   │   └── register.dto.ts
+│   ├── entities/             # Domain models
+│   │   └── user.entity.ts
+│   ├── repositories/          # Data access layer
+│   │   └── user.repository.ts
+│   ├── auth.service.ts        # Business logic
+│   ├── auth.service.spec.ts   # REQUIRED
+│   ├── auth.controller.ts     # HTTP handlers
+│   ├── auth.controller.spec.ts # REQUIRED
+│   └── auth.module.ts
 ├── app.controller.ts
 ├── app.module.ts
 └── main.ts
+```
+
+---
+
+## Service Pattern
+
+```typescript
+@Injectable()
+export class UserService {
+  constructor(
+    private readonly userRepository: UserRepository,
+  ) {}
+
+  async create(createDto: CreateUserDto): Promise<User> {
+    // Business logic here
+    return this.userRepository.create(createDto);
+  }
+}
+```
+
+---
+
+## Repository Pattern
+
+```typescript
+@Injectable()
+export class UserRepository {
+  constructor(
+    @InjectRepository(User)
+    private readonly db: Repository<User>,
+  ) {}
+
+  create(data: CreateUserDto): Promise<User> {
+    return this.db.save(data);
+  }
+}
 ```
 
 ---
@@ -68,7 +162,7 @@ src/
 |--------|----------|-------------|
 | POST | `/api/auth/register` | Register new user |
 | POST | `/api/auth/login` | Login, returns JWT |
-| GET | `/` | Health check (Hello World) |
+| GET | `/` | Health check |
 
 ---
 
@@ -88,11 +182,3 @@ src/
 - **User:** Non-root (`nestjs`)
 - **Port:** `3000`
 - **Health Check:** Enabled
-
----
-
-## Notes
-
-- Tests are in `*.spec.ts` files alongside source
-- Use `class-validator` DTOs for input validation
-- Auth uses Passport + JWT strategy
